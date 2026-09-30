@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>bits-ui Dialog focus trap inside a Shadow Root</title>
+	</head>
+	<body>
+		<h1>bits-ui Dialog focus trap: light DOM vs Shadow Root</h1>
+		<p>Open each dialog and press Tab (Option+Tab in Safari) a few times. Nothing focusable follows the widgets on purpose: like a checkout widget appended to the end of <code>body</code>.</p>
+		<h2>Light DOM (works)</h2>
+		<div id="light"></div>
+		<h2>Open Shadow Root (broken)</h2>
+		<div id="shadow-host"></div>
+		<h2>Open Shadow Root, dialog open on mount (broken)</h2>
+		<p><button type="button" id="mount-open" data-label="page-trigger">Mount widget with open dialog</button></p>
+		<script type="module" src="/src/main.js"></script>
+	</body>
+</html>
