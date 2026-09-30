@@ -21,11 +21,18 @@ The page has three cases. Nothing focusable follows them, like a widget appended
 
 Steps: open a dialog, press Tab (Option+Tab in Safari) past the last button, then press Escape.
 
-| Case                        | Chromium                                     | Firefox                        | WebKit                                       |
-| --------------------------- | -------------------------------------------- | ------------------------------ | -------------------------------------------- |
-| Light DOM                   | Tab wraps; focus returns to the trigger      | same                           | Tab wraps                                    |
-| Shadow Root, trigger inside | Tab wraps; **focus returns to `body`**       | **focus returns to `body`**    | Tab wraps                                    |
-| Shadow Root, open on mount  | **Tab past the last button leaves the dialog** | **Tab stays on the last button** | **Tab past the last button leaves the dialog** |
+Results (Playwright 1.63, bits-ui 2.19.3):
+
+- **Light DOM (control)**
+  - Chromium and Firefox: Tab wraps; focus returns to the trigger on close.
+  - WebKit: Tab wraps. (Safari does not focus a clicked button, so focus returns to `body`
+    here too; that part is not this bug.)
+- **Shadow Root, trigger inside the root**
+  - Tab wraps in all three browsers.
+  - Chromium and Firefox: **focus returns to `body` instead of the trigger** on close.
+- **Shadow Root, dialog open on mount**
+  - Chromium and WebKit: **Tab past the last button leaves the dialog** (focus lands on `body`).
+  - Firefox: **Tab stays on the last button** instead of wrapping.
 
 Cause: `FocusScope` compares focus against the document, which reports the shadow host instead of
 the focused element (`focus-scope.svelte.ts`, `focus-scope-manager.ts`).

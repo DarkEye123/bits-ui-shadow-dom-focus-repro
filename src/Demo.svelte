@@ -2,7 +2,6 @@
 	import { BitsConfig, Dialog } from 'bits-ui';
 
 	let { name, portalTarget = undefined, initiallyOpen = false } = $props();
-	let open = $state(initiallyOpen);
 	let log = $state([]);
 
 	// The element that really has focus, even inside a Shadow Root.
@@ -20,7 +19,7 @@
 </script>
 
 <BitsConfig defaultPortalTo={portalTarget}>
-	<Dialog.Root bind:open onOpenChange={() => (log = [])}>
+	<Dialog.Root open={initiallyOpen} onOpenChange={() => (log = [])}>
 		{#if !initiallyOpen}
 			<Dialog.Trigger data-label={`${name}-trigger`}>Open {name} dialog</Dialog.Trigger>
 		{/if}
