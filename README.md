@@ -1,42 +1,78 @@
-# bits-ui: Dialog focus trap inside a Shadow Root
+# bits-ui: Dialog focus inside a Shadow Root
 
 Minimal reproduction for a bits-ui `Dialog` whose content portals into an element inside an open
 Shadow Root (via `<BitsConfig defaultPortalTo>`), as in an embeddable web widget.
 
 - bits-ui 2.19.3, svelte 5.57.1, vite 7
 - Open in StackBlitz: https://stackblitz.com/github/DarkEye123/bits-ui-shadow-dom-focus-repro
+- Upstream issue: https://github.com/huntabyte/bits-ui/issues/2178
 
 ```bash
 npm install
 npm run dev
 ```
 
-The page has three cases. Nothing focusable follows them, like a widget appended to the end of
-`body`. Each dialog shows the element that really has focus (`shadowRoot.activeElement`).
+## What a modal dialog should do
 
-1. **Light DOM** (control): the same component portalling to `document.body`.
-2. **Shadow Root, trigger inside the root.**
-3. **Shadow Root, dialog open on mount**: the page button mounts a new Shadow Root whose dialog
-   starts open, like a checkout popup.
+- **Trap focus:** while it is open, Tab cycles through the dialog's own buttons
+  (First → Second → Close → First) and never reaches the page behind it.
+- **Restore focus:** when it closes, focus returns to the element that opened it, so a keyboard
+  user continues from there instead of from the top of the page.
 
-Steps: open a dialog, press Tab (Option+Tab in Safari) past the last button, then press Escape.
+## How to test
 
-Results (Playwright 1.63, bits-ui 2.19.3):
+Use the keyboard only: Tab to a case's button, press Enter to open the dialog, press Tab four
+times, press Escape. Each case prints where focus was after opening and after each Tab, and what
+was focused after the dialog closed.
 
-- **Light DOM (control)**
-  - Chromium and Firefox: Tab wraps; focus returns to the trigger on close.
-  - WebKit: Tab wraps. (Safari does not focus a clicked button, so focus returns to `body`
-    here too; that part is not this bug.)
-- **Shadow Root, trigger inside the root**
-  - Tab wraps in all three browsers.
-  - Chromium and Firefox: **focus returns to `body` instead of the trigger** on close.
-- **Shadow Root, dialog open on mount**
-  - Chromium and WebKit: **Tab past the last button leaves the dialog** (focus lands on `body`).
-  - Firefox: **Tab stays on the last button** instead of wrapping.
+In Safari, use Option+Tab (plain Tab moves only between text fields), and open the dialogs with
+the keyboard: Safari does not focus a clicked button, so after a mouse click it has nothing to
+restore, even in the light DOM.
 
-Cause: `FocusScope` compares focus against the document, which reports the shadow host instead of
-the focused element (`focus-scope.svelte.ts`, `focus-scope-manager.ts`).
+## Cases and results
 
-Replacing those reads with svelte-toolbelt's `getActiveElement(doc)`, reading the `focusin`
-target with `e.composedPath()[0]`, and checking `preFocusedElement.isConnected` instead of
-`document.contains(...)` fixes all three Shadow Root rows in all three browsers.
+### 1. Light DOM (control): works
+
+- **Expected and actual:** focus log `First → Second → Close → First → Second`. After Escape,
+  focus is on the "Open light dialog" button.
+
+### 2. Inside a Shadow Root, trigger inside the root: focus restore broken
+
+- **Expected:** the same as case 1. After Escape, focus is on the "Open shadow dialog" button.
+- **Actual (Chrome, Firefox, Safari):** the focus log is correct, but after Escape **nothing is
+  focused** ("nothing (the page body)"). The next Tab starts again from the top of the page.
+- Why Tab looks right here: bits-ui's own wrap check never matches (see "Cause"), so Tab after
+  Close really does leave the dialog. It lands on the next focusable element on the page (the
+  case 3 button). That focus change is visible to the document, so bits-ui's "focus escaped"
+  handler pulls focus back to First. The result looks like wrapping, but only because something
+  focusable follows the widget.
+
+### 3. Inside a Shadow Root, dialog open on mount: focus trap broken
+
+The button mounts a new Shadow Root at the end of the page whose dialog starts open, like a
+checkout popup. Nothing focusable comes after it.
+
+- **Expected:** focus log `First → Second → Close → First → Second`.
+- **Actual:**
+  - Chrome and Safari: `First → Second → Close → nothing (the page body) → First`. Tab after
+    Close **leaves the dialog**.
+  - Firefox: `First → Second → Close → Close → Close`. Tab after Close **stays on Close**.
+
+## Cause
+
+`FocusScope` asks the document which element has focus. Inside a Shadow Root the document
+answers with the shadow host, not the focused element (`focus-scope.svelte.ts`,
+`focus-scope-manager.ts`):
+
+- open auto-focus checks `container.ownerDocument.activeElement`;
+- Tab wrapping compares `doc.activeElement` with the first and last tabbable, which never matches;
+- the `focusin` handler reads `e.target`, which is retargeted to the host;
+- the element to restore is stored as `document.activeElement` (the host), and restore checks
+  `document.contains(...)`, which is false for nodes inside a Shadow Root.
+
+## Fix
+
+Read the focused element with svelte-toolbelt's `getActiveElement(doc)` (it follows
+`shadowRoot.activeElement` down), read the `focusin` target with `e.composedPath()[0]`, and check
+`preFocusedElement.isConnected` instead of `document.contains(...)`. With those changes, cases 2
+and 3 behave like case 1 in Chrome, Firefox and Safari.

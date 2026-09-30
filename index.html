@@ -2,17 +2,68 @@
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />
-		<title>bits-ui Dialog focus trap inside a Shadow Root</title>
+		<title>bits-ui Dialog focus inside a Shadow Root</title>
+		<style>
+			body { font-family: system-ui, sans-serif; max-width: 760px; margin: 24px auto; line-height: 1.5; }
+			section { border-top: 1px solid #ccc; padding-top: 8px; margin-top: 24px; }
+			dt { font-weight: 700; }
+		</style>
 	</head>
 	<body>
-		<h1>bits-ui Dialog focus trap: light DOM vs Shadow Root</h1>
-		<p>Open each dialog and press Tab (Option+Tab in Safari) a few times. Nothing focusable follows the widgets on purpose: like a checkout widget appended to the end of <code>body</code>.</p>
-		<h2>Light DOM (works)</h2>
-		<div id="light"></div>
-		<h2>Open Shadow Root (broken)</h2>
-		<div id="shadow-host"></div>
-		<h2>Open Shadow Root, dialog open on mount (broken)</h2>
-		<p><button type="button" id="mount-open" data-label="page-trigger">Mount widget with open dialog</button></p>
+		<h1>bits-ui Dialog focus inside a Shadow Root</h1>
+		<p>A modal dialog should do two things with keyboard focus:</p>
+		<ul>
+			<li><strong>Trap focus:</strong> while it is open, Tab cycles through the dialog's own buttons (First → Second → Close → First) and never reaches the page behind it.</li>
+			<li><strong>Restore focus:</strong> when it closes, focus returns to the element that opened it, so a keyboard user continues from there.</li>
+		</ul>
+		<p>
+			Use the keyboard only: Tab to a button, press Enter to open, Tab through the dialog, press Escape to close.
+			In Safari, press Option+Tab instead of Tab (plain Tab moves only between text fields). Open the dialogs with the
+			keyboard, not the mouse: Safari does not focus a clicked button, so after a mouse click it has nothing to restore,
+			even in case 1.
+		</p>
+		<p>Each case shows where focus went while the dialog was open and after it closed.</p>
+
+		<section>
+			<h2>Case 1: light DOM (control, works)</h2>
+			<dl>
+				<dt>Expected and actual</dt>
+				<dd>Tab cycles First → Second → Close → First. After Escape, focus is back on the "Open light dialog" button.</dd>
+			</dl>
+			<div id="light"></div>
+		</section>
+
+		<section>
+			<h2>Case 2: inside a Shadow Root, trigger inside the root (focus restore broken)</h2>
+			<dl>
+				<dt>Expected</dt>
+				<dd>The same as case 1: after Escape, focus is back on the "Open shadow dialog" button.</dd>
+				<dt>Actual (bits-ui 2.19.3)</dt>
+				<dd>
+					Tab cycles correctly, but only by accident (see the README). After Escape, <strong>nothing is focused</strong>
+					(the page body), so the next Tab starts again from the top of the page.
+				</dd>
+			</dl>
+			<div id="shadow-host"></div>
+		</section>
+
+		<section>
+			<h2>Case 3: inside a Shadow Root, dialog open on mount (focus trap broken)</h2>
+			<p>
+				The button mounts a new Shadow Root at the end of the page whose dialog starts open, like a checkout popup.
+				Nothing focusable comes after it.
+			</p>
+			<dl>
+				<dt>Expected</dt>
+				<dd>Tab cycles First → Second → Close → First.</dd>
+				<dt>Actual (bits-ui 2.19.3)</dt>
+				<dd>
+					Chrome and Safari: Tab after Close <strong>leaves the dialog</strong> (the log shows "nothing (the page body)").
+					Firefox: Tab after Close <strong>stays on Close</strong>.
+				</dd>
+			</dl>
+			<p><button type="button" id="mount-open" data-label='"Mount widget with open dialog" button'>Mount widget with open dialog</button></p>
+		</section>
 		<script type="module" src="/src/main.js"></script>
 	</body>
 </html>
